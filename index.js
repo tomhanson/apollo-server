@@ -3,51 +3,31 @@ const fetch = require('node-fetch');
 // const home = require('./mocks/properties');
 // const data = require('./mocks/data')
 
-const getPageData = async (page) => {
-  return homeData();
-}
-
-const homeData = async () => {
-  const data = await fetch('https://abbeymillhomes.co.uk/wp-json/wp/v2/pages?slug=home').then(data => data.json());
-  const home = data[0]
-  return {
-    bannerImage: home.acf.home_banner_image.sizes['bg-img-lg'],
-    home_banner_headline: home.acf.home_banner_headline,
-    home_banner_video: home.acf.home_banner_video,
-    home_top_content: home.acf.home_top_content,
-    home_bottom_content_headline: home.acf.home_bottom_content_headline,
-    home_bottom_content_subheadline: home.acf.home_bottom_content_subheadline,
-    home_testimonials_headline: home.acf.home_testimonials_headline,
-    home_testimonials_subheadline: home.acf.home_testimonials_subheadline,
-  }
-}
-const propertiesFunc = async (results) => {
-  const data = await fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties?per_page=${results}`).then(data => data.json());
-  return data.map((item) => {
-    return {
-      title: item.title.rendered,
-      slug: item.slug,
-      latlng: item.latlng,
-      mainPhoto: {
-        url: item.acf.main_photo.url
-      },
-      property_description: item.acf.property_description
-    }
-  })
-
-}
 
 // Type definitions define the "shape" of your data and specify
 // which ways the data can be fetched from the GraphQL server.
 const typeDefs = gql`
   # Comments in GraphQL are defined with the hash (#) symbol.
 
+  type Gallery {
+    images: Images
+  }
+  
   type Property {
     title: String
     slug: String
+    featuredImage: [Images]
+    status: Boolean
+    address: String
+    description: String
+    gallery: [Gallery]
+    brochure: [Gallery]
+    brochureDownload: String
+    specs: String
+    price: String
     latlng: String
     mainPhoto: MainPhotoType
-    property_description: String
+    completionDate: String
   }
 
   type ImageInfo {
@@ -72,22 +52,35 @@ const typeDefs = gql`
     portfolio:ImageInfo,
     bgLg: ImageInfo,
   }
+  
+  type DynamicProperty {
+    id: String
+  }
 
   type Home {
     bannerImage: Images
     bannerHeadline: String
     bannerVideo: String
+    sliderProperties: [DynamicProperty]
     topContent: String
     bottomContentHeadline: String
     bottomContentSubheadline: String
+    contentImage: String
     testimonialsHeadline: String
     testimonialsSubheadline: String
+  }
+
+  type CharityData {
+    charityLogo: Images
+    charityInformation: String
+    charityLink: String
   }
 
   type About {
     leftContent: String
     image: String
     charityInfoHeadline: String
+    charityInformation: [CharityData]
   }
 
 
@@ -98,6 +91,7 @@ const typeDefs = gql`
   # The "Query" type is the root of all GraphQL queries.
   type Query {
     properties(results: Int!): [Property!]!
+    property(id: Int!): Property!
     pages(page: String!): Page
   }
   type Page {
@@ -112,7 +106,7 @@ const typeDefs = gql`
 const resolvers = {
   Query: {
     properties(_, { results }) {
-      return propertiesFunc(results);
+      return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties?per_page=${results}`).then(data => data.json());
     },
     pages(_, { page }) {
       return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/pages?slug=${page}`).then(data => data.json()).then(data => data[0]);
@@ -143,22 +137,50 @@ const resolvers = {
     portfolio: (data) => ({ width: data['img-portfolio-width'], height: data['img-portfolio-height'], url: data['img-portfolio'] }),
     bgLg: (data) => ({ width: data['bg-img-lg'], height: data['bg-img-lg'], url: data['bg-img-lg'] }),
   },
+  DynamicProperty: {
+    id: (data) => data.property.ID
+  },
   Home: {
     bannerImage: (homeData) => homeData.acf.home_banner_image.sizes,
     bannerHeadline: (homeData) => homeData.acf.home_banner_headline,
     bannerVideo: (homeData) => homeData.acf.home_banner_video,
+    sliderProperties: (homeData) => homeData.acf.home_properties,
     topContent: (homeData) => homeData.acf.home_top_content,
+    contentImage: (homeData) => homeData.acf.home_content_image,
     bottomContentHeadline: (homeData) => homeData.acf.home_bottom_content_headline,
     bottomContentSubheadline: (homeData) => homeData.acf.home_bottom_content_subheadline,
     testimonialsHeadline: (homeData) => homeData.acf.home_testimonials_headline,
     testimonialsSubheadline: (homeData) => homeData.acf.home_testimonials_subheadline,
   },
+  CharityData: {
+    charityLogo: (data) => data.charity_logo.sizes,
+    charityInformation: (data) => data.charity_information,
+    charityLink: (data) => data.charity_link
+  },
   About: {
     leftContent: (aboutData) => aboutData.acf.about_left_content,
     image: (aboutData) => aboutData.acf.about_us_image,
     charityInfoHeadline: (aboutData) => aboutData.acf.about_charity_info_headline,
-    // charityInformation: (aboutData) => aboutData.acf.about_charity_info_headline,
-
+    charityInformation: (aboutData) => aboutData.acf.about_charity_information,
+  },
+  Gallery: {
+    images: (data) => data.sizes
+  },
+  Property: {
+    title: (propData) => propData.title.rendered,
+    slug: (propData) => propData.slug,
+    featuredImage: (propData) => propData.better_featured_image.media_details.sizes,
+    status: (propData) => propData.acf.property_status,
+    address: (propData) => propData.acf.property_address,
+    description: (propData) => propData.acf.property_description,
+    gallery: (propData) => propData.acf.gallery,
+    brochure: (propData) => propData.acf.brochure,
+    brochureDownload: (propData) => propData.acf.brochure_download,
+    specs: (propData) => propData.acf.property_specs,
+    price: (propData) => propData.acf.property_price,
+    latlng: (propData) => propData.acf.latlng,
+    mainPhoto: (propData) => propData.acf.main_photo.sizes,
+    completionDate: (propData) => propData.acf.completion_date
   }
 };
 
