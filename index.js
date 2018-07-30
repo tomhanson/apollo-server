@@ -17,7 +17,7 @@ const typeDefs = gql`
     title: String
     slug: String
     featuredImage: [Images]
-    status: Boolean
+    status: String
     address: String
     description: String
     gallery: [Gallery]
@@ -54,35 +54,15 @@ const typeDefs = gql`
   }
   
   type DynamicProperty {
-    id: String
+    propertyData: Property
   }
 
-  type Home {
-    bannerImage: Images
-    bannerHeadline: String
-    bannerVideo: String
-    sliderProperties: [DynamicProperty]
-    topContent: String
-    bottomContentHeadline: String
-    bottomContentSubheadline: String
-    contentImage: String
-    testimonialsHeadline: String
-    testimonialsSubheadline: String
-  }
 
   type CharityData {
     charityLogo: Images
     charityInformation: String
     charityLink: String
   }
-
-  type About {
-    leftContent: String
-    image: String
-    charityInfoHeadline: String
-    charityInformation: [CharityData]
-  }
-
 
   type MainPhotoType {
     url: String
@@ -94,10 +74,33 @@ const typeDefs = gql`
     property(id: Int!): Property!
     pages(page: String!): Page
   }
-  type Page {
-    home: Home
-    about: About
+  interface Page {
+    id: String
   }
+  type About implements Page {
+    id: String
+    leftContent: String
+    image: String
+    charityInfoHeadline: String
+    charityInformation: [CharityData]
+  }
+  type Home implements Page {
+    id: String
+    bannerImage: Images
+    bannerHeadline: String
+    bannerVideo: String
+    sliderProperties: [DynamicProperty]
+    topContent: String
+    bottomContentHeadline: String
+    bottomContentSubheadline: String
+    contentImage: String
+    testimonialsHeadline: String
+    testimonialsSubheadline: String
+  }
+  # type Page {
+  #   home: Home
+  #   about: About
+  # }
 `;
 
 
@@ -113,13 +116,17 @@ const resolvers = {
     }
   },
   Page: {
-    home: (data) => data,
-    about: (data) => data
-  },
-  ImageInfo: {
-    width: (data) => data.width,
-    height: (data) => data.height,
-    url: (data) => data.url,
+    id: ()=> 'four',
+    __resolveType(data, context, info){
+      if(data.slug === 'home'){
+        return 'Home';
+      }
+
+      if(data.slug === 'about'){
+        return 'About';
+      }
+      return null;
+    },
   },
   Images: {
     thumbnail: (data) => ({ width: data['thumbnail-width'], height: data['thumbnail-height'], url: data.thumbnail }),
@@ -138,7 +145,7 @@ const resolvers = {
     bgLg: (data) => ({ width: data['bg-img-lg'], height: data['bg-img-lg'], url: data['bg-img-lg'] }),
   },
   DynamicProperty: {
-    id: (data) => data.property.ID
+    propertyData: async(data) => await fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties/${data.property.ID}`).then(data => data.json()).then(data => data)
   },
   Home: {
     bannerImage: (homeData) => homeData.acf.home_banner_image.sizes,
@@ -167,10 +174,9 @@ const resolvers = {
     images: (data) => data.sizes
   },
   Property: {
-    title: (propData) => propData.title.rendered,
-    slug: (propData) => propData.slug,
+    title: ({title}) => title.rendered,
     featuredImage: (propData) => propData.better_featured_image.media_details.sizes,
-    status: (propData) => propData.acf.property_status,
+    status: ({acf:{property_status}}) => property_status,
     address: (propData) => propData.acf.property_address,
     description: (propData) => propData.acf.property_description,
     gallery: (propData) => propData.acf.gallery,
