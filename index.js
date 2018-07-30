@@ -16,7 +16,7 @@ const typeDefs = gql`
   type Property {
     title: String
     slug: String
-    featuredImage: [Images]
+    featuredImage: FeatImages
     status: String
     address: String
     description: String
@@ -50,7 +50,24 @@ const typeDefs = gql`
     galleryMd: ImageInfo,
     galleryLg:ImageInfo,
     portfolio:ImageInfo,
+    portfolioRetina:ImageInfo,
     bgLg: ImageInfo,
+  }
+  type FeatImages {
+    thumbnail: ImageInfo,
+    medium:  ImageInfo,
+    large: ImageInfo,
+    imgXs: ImageInfo,
+    propertyTileSm: ImageInfo,
+    propertyTile: ImageInfo,
+    propertyTileMd: ImageInfo,
+    propertyTileSquare: ImageInfo,
+    galleryXs: ImageInfo,
+    gallerySm:ImageInfo,
+    galleryMd: ImageInfo,
+    portfolio:ImageInfo,
+    portfolioRetina:ImageInfo,
+
   }
   
   type DynamicProperty {
@@ -75,17 +92,17 @@ const typeDefs = gql`
     pages(page: String!): Page
   }
   interface Page {
-    id: String
+    slug: String
   }
   type About implements Page {
-    id: String
+    slug: String
     leftContent: String
     image: String
     charityInfoHeadline: String
     charityInformation: [CharityData]
   }
   type Home implements Page {
-    id: String
+    slug: String
     bannerImage: Images
     bannerHeadline: String
     bannerVideo: String
@@ -97,10 +114,6 @@ const typeDefs = gql`
     testimonialsHeadline: String
     testimonialsSubheadline: String
   }
-  # type Page {
-  #   home: Home
-  #   about: About
-  # }
 `;
 
 
@@ -116,7 +129,7 @@ const resolvers = {
     }
   },
   Page: {
-    id: ()=> 'four',
+    slug: (data)=> data.slug,
     __resolveType(data, context, info){
       if(data.slug === 'home'){
         return 'Home';
@@ -142,10 +155,26 @@ const resolvers = {
     galleryMd: (data) => ({ width: data['gallery-img-md-width'], height: data['gallery-img-md-height'], url: data['gallery-img-md'] }),
     galleryLg: (data) => ({ width: data['gallery-img-lg-width'], height: data['gallery-img-lg-height'], url: data['gallery-img-lg'] }),
     portfolio: (data) => ({ width: data['img-portfolio-width'], height: data['img-portfolio-height'], url: data['img-portfolio'] }),
-    bgLg: (data) => ({ width: data['bg-img-lg'], height: data['bg-img-lg'], url: data['bg-img-lg'] }),
+    portfolioRetina: (data) => ({ width: data['img-portfolio-retina-width'], height: data['img-portfolio-retina-height'], url: data['img-portfolio'] }),
+    bgLg: (data) => ({ width: data['bg-img-lg-width'], height: data['bg-img-lg-height'], url: data['bg-img-lg'] }),
+  },
+  FeatImages: {
+    thumbnail: ({ thumbnail: data }) => ({ width: data.width, height: data.height, url: data.source_url }),
+    medium: ({ medium: data }) => ({ width: data.width, height: data.height, url: data.source_url }),
+    large: ({ large: data }) => ({ width: data.width, height: data.height, url: data.source_url }),
+    imgXs: (data) => ({ width: data['img-xs'].width, height: data['img-xs'].height, url: data['img-xs'].source_url }),
+    propertyTileSm: (data) => ({ width: data['img-property-tile-sm'].width, height: data['img-property-tile-sm'].height, url: data['img-property-tile-sm'].source_url }),
+    propertyTile: (data) => ({ width: data['img-property-tile'].width, height: data['img-property-tile'].height, url: data['img-property-tile'].source_url }),
+    propertyTileMd: (data) => ({ width: data['img-property-tile-md'].width, height: data['img-property-tile-md'].height, url: data['img-property-tile-md'].source_url }),
+    propertyTileSquare: (data) => ({ width: data['img-property-tile-sq'].width, height: data['img-property-tile-sq'].height, url: data['img-property-tile-sq'].source_url }),
+    galleryXs: (data) => ({ width: data['gallery-img-xs'].width, height: data['gallery-img-xs'].height, url: data['gallery-img-xs'].source_url }),
+    gallerySm: (data) => ({ width: data['gallery-img-sm'].width, height: data['gallery-img-sm'].height, url: data['gallery-img-sm'].source_url }),
+    galleryMd: (data) => ({ width: data['gallery-img-md'].width, height: data['gallery-img-md'].height, url: data['gallery-img-md'].source_url }),
+    portfolio: (data) => ({ width: data['img-portfolio'].width, height: data['img-portfolio'].height, url: data['img-portfolio'].source_url }),
+    portfolioRetina: (data) => ({ width: data['img-portfolio-retina'].width, height: data['img-portfolio-retina'].height, url: data['img-portfolio-retina'].source_url }),
   },
   DynamicProperty: {
-    propertyData: async(data) => await fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties/${data.property.ID}`).then(data => data.json()).then(data => data)
+    propertyData: (data) => fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties/${data.property.ID}`).then(data => data.json())
   },
   Home: {
     bannerImage: (homeData) => homeData.acf.home_banner_image.sizes,
