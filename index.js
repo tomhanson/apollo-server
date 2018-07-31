@@ -20,8 +20,8 @@ const typeDefs = gql`
     status: String
     address: String
     description: String
-    gallery: [Gallery]
-    brochure: [Gallery]
+    gallery: [Images]
+    brochure: [Images]
     brochureDownload: String
     specs: String
     price: String
@@ -85,11 +85,18 @@ const typeDefs = gql`
     url: String
   }
 
+  type Options {
+    contactnumber: String
+    contactEmail: String
+    contactAddress: String
+  }
+
   # The "Query" type is the root of all GraphQL queries.
   type Query {
     properties(results: Int!): [Property!]!
     property(id: Int!): Property!
     pages(page: String!): Page
+    options: Options
   }
   interface Page {
     slug: String
@@ -103,7 +110,7 @@ const typeDefs = gql`
   }
   type Home implements Page {
     slug: String
-    bannerImage: Images
+    bannerImage: ImageInfo
     bannerHeadline: String
     bannerVideo: String
     sliderProperties: [DynamicProperty]
@@ -113,6 +120,10 @@ const typeDefs = gql`
     contentImage: String
     testimonialsHeadline: String
     testimonialsSubheadline: String
+  }
+  type Contact implements Page {
+    slug: String
+    mainImage: String
   }
 `;
 
@@ -124,25 +135,34 @@ const resolvers = {
     properties(_, { results }) {
       return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties?per_page=${results}`).then(data => data.json());
     },
+    property(_, { id }) {
+      return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties/${id}`).then(data => data.json());
+    },
     pages(_, { page }) {
       return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/pages?slug=${page}`).then(data => data.json()).then(data => data[0]);
+    },
+    options(_, { page }) {
+      return fetch(`https://abbeymillhomes.co.uk/wp-json/acf/v2/options`).then(data => data.json()).then(data => data.acf);
     }
   },
   Page: {
     slug: (data)=> data.slug,
     __resolveType(data, context, info){
-      if(data.slug === 'home'){
-        return 'Home';
-      }
-
-      if(data.slug === 'about'){
-        return 'About';
+      switch(data.slug) {
+        case 'home':
+          return 'Home';
+        case 'about-us':
+          return 'About';
+        case 'contact-us':
+          return 'Contact';
+        default: 
+          return null
       }
       return null;
     },
   },
   Images: {
-    thumbnail: (data) => ({ width: data['thumbnail-width'], height: data['thumbnail-height'], url: data.thumbnail }),
+    thumbnail: (data, args) => ({ width: data['thumbnail-width'], height: data['thumbnail-height'], url: data.thumbnail }),
     medium: (data) => ({ width: data['medium-width'], height: data['medium-height'], url: data.medium }),
     large: (data) => ({ width: data['large-width'], height: data['large-height'], url: data.large }),
     imgXs: (data) => ({ width: data['img-xs-width'], height: data['img-xs-height'], url: data['img-xs'] }),
@@ -177,7 +197,7 @@ const resolvers = {
     propertyData: (data) => fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties/${data.property.ID}`).then(data => data.json())
   },
   Home: {
-    bannerImage: (homeData) => homeData.acf.home_banner_image.sizes,
+    bannerImage: (homeData, ) => homeData.acf.home_banner_image.sizes,
     bannerHeadline: (homeData) => homeData.acf.home_banner_headline,
     bannerVideo: (homeData) => homeData.acf.home_banner_video,
     sliderProperties: (homeData) => homeData.acf.home_properties,
@@ -199,6 +219,14 @@ const resolvers = {
     charityInfoHeadline: (aboutData) => aboutData.acf.about_charity_info_headline,
     charityInformation: (aboutData) => aboutData.acf.about_charity_information,
   },
+  Contact: {
+    mainImage: (data) => data.acf.contact_main_image
+  },
+  Options: {
+    contactnumber: ({global_contact_number}) => global_contact_number,
+    contactEmail: ({global_contact_email}) => global_contact_email,
+    contactAddress: ({global_contact_address}) => global_contact_address
+  },
   Gallery: {
     images: (data) => data.sizes
   },
@@ -208,8 +236,8 @@ const resolvers = {
     status: ({acf:{property_status}}) => property_status,
     address: (propData) => propData.acf.property_address,
     description: (propData) => propData.acf.property_description,
-    gallery: (propData) => propData.acf.gallery,
-    brochure: (propData) => propData.acf.brochure,
+    gallery: (propData) => propData.acf.gallery.map(image =>  image.sizes ),
+    brochure: (propData) => (propData.acf.brochure) ?propData.acf.brochure.map(image =>  image.sizes ) : null,
     brochureDownload: (propData) => propData.acf.brochure_download,
     specs: (propData) => propData.acf.property_specs,
     price: (propData) => propData.acf.property_price,
