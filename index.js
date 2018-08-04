@@ -147,7 +147,7 @@ const resolvers = {
   },
   Page: {
     slug: (data)=> data.slug,
-    __resolveType(data, context, info){
+    __resolveType(data, context, info) {
       switch(data.slug) {
         case 'home':
           return 'Home';
@@ -236,8 +236,8 @@ const resolvers = {
     status: ({acf:{property_status}}) => property_status,
     address: (propData) => propData.acf.property_address,
     description: (propData) => propData.acf.property_description,
-    gallery: (propData) => propData.acf.gallery.map(image =>  image.sizes ),
-    brochure: (propData) => (propData.acf.brochure) ?propData.acf.brochure.map(image =>  image.sizes ) : null,
+    gallery: (propData) => (propData.acf.gallery) ? propData.acf.gallery.map(image =>  image.sizes ) : null,
+    brochure: (propData) => (propData.acf.brochure) ? propData.acf.brochure.map(image =>  image.sizes ) : null,
     brochureDownload: (propData) => propData.acf.brochure_download,
     specs: (propData) => propData.acf.property_specs,
     price: (propData) => propData.acf.property_price,
