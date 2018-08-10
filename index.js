@@ -3,40 +3,41 @@ const fetch = require('node-fetch');
 // const home = require('./mocks/properties');
 // const data = require('./mocks/data')
 
-
-// Type definitions define the "shape" of your data and specify
-// which ways the data can be fetched from the GraphQL server.
+function convertImageName(param) {
+  switch (param) {
+    case 'imgXs':
+      return 'img-xs'
+    case 'propertyTileSm':
+      return 'img-property-tile-sm'
+    case 'propertyTile':
+      return 'img-property-tile'
+    case 'propertyTileMd':
+      return 'img-property-tile-md'
+    case 'propertyTileSquare':
+      return 'img-property-tile-sq'
+    case 'galleryXs':
+      return 'gallery-img-xs'
+    case 'gallerySm':
+      return 'gallery-img-sm'
+    case 'galleryMd':
+      return 'gallery-img-md'
+    case 'galleryLg':
+      return 'gallery-img-lg'
+    case 'portfolio':
+      return 'img-portfolio'
+    case 'portfolioRetina':
+      return 'img-portfolio-retina"'
+    case 'bgLg':
+      return 'bg-img-lg'
+    default:
+      return param;
+  }
+}
 const typeDefs = gql`
   # Comments in GraphQL are defined with the hash (#) symbol.
 
-  type Gallery {
-    images: Images
-  }
-  
-  type Property {
-    title: String
-    slug: String
-    featuredImage: FeatImages
-    status: String
-    address: String
-    description: String
-    gallery: [Images]
-    brochure: [Images]
-    brochureDownload: String
-    specs: String
-    price: String
-    latlng: String
-    mainPhoto: MainPhotoType
-    completionDate: String
-  }
-
-  type ImageInfo {
-    width: String,
-    height: String,
-    url: String
-  }
-
   type Images {
+    preload: ImageInfo,
     thumbnail: ImageInfo,
     medium:  ImageInfo,
     large: ImageInfo,
@@ -53,7 +54,54 @@ const typeDefs = gql`
     portfolioRetina:ImageInfo,
     bgLg: ImageInfo,
   }
+
+  enum ImageSizes {
+    preload
+    thumbnail
+    medium
+    large
+    imgXs
+    propertyTileSm
+    propertyTile
+    propertyTileMd
+    propertyTileSquare
+    galleryXs
+    gallerySm
+    galleryMd
+    galleryLg
+    portfolio
+    portfolioRetina
+    bgLg
+  }
+  type Gallery {
+    images: Images
+  }
+  
+  type Property {
+    title: String
+    slug: String
+    featuredImage: FeatImages
+    status: String
+    address: String
+    description: String
+    gallery(size: ImageSizes): [ImageInfo]
+    brochure(size: ImageSizes): [ImageInfo]
+    brochureDownload: String
+    specs: String
+    price: String
+    latlng: String
+    mainPhoto(size: ImageSizes): ImageInfo
+    completionDate: String
+  }
+
+  type ImageInfo {
+    width: String,
+    height: String,
+    url: String
+  }
+
   type FeatImages {
+    preload: ImageInfo,
     thumbnail: ImageInfo,
     medium:  ImageInfo,
     large: ImageInfo,
@@ -81,9 +129,6 @@ const typeDefs = gql`
     charityLink: String
   }
 
-  type MainPhotoType {
-    url: String
-  }
 
   type Options {
     contactnumber: String
@@ -110,14 +155,14 @@ const typeDefs = gql`
   }
   type Home implements Page {
     slug: String
-    bannerImage: ImageInfo
+    bannerImage(size: ImageSizes): ImageInfo
     bannerHeadline: String
     bannerVideo: String
-    sliderProperties: [DynamicProperty]
+    sliderProperties: [Property]
     topContent: String
     bottomContentHeadline: String
     bottomContentSubheadline: String
-    contentImage: String
+    contentImage(size: ImageSizes): ImageInfo
     testimonialsHeadline: String
     testimonialsSubheadline: String
   }
@@ -146,22 +191,23 @@ const resolvers = {
     }
   },
   Page: {
-    slug: (data)=> data.slug,
+    slug: (data) => data.slug,
     __resolveType(data, context, info) {
-      switch(data.slug) {
+      switch (data.slug) {
         case 'home':
           return 'Home';
         case 'about-us':
           return 'About';
         case 'contact-us':
           return 'Contact';
-        default: 
+        default:
           return null
       }
       return null;
     },
   },
   Images: {
+    preload: (data, args) => ({ width: data['preload-width'], height: data['preload-height'], url: data.preload }),
     thumbnail: (data, args) => ({ width: data['thumbnail-width'], height: data['thumbnail-height'], url: data.thumbnail }),
     medium: (data) => ({ width: data['medium-width'], height: data['medium-height'], url: data.medium }),
     large: (data) => ({ width: data['large-width'], height: data['large-height'], url: data.large }),
@@ -179,6 +225,7 @@ const resolvers = {
     bgLg: (data) => ({ width: data['bg-img-lg-width'], height: data['bg-img-lg-height'], url: data['bg-img-lg'] }),
   },
   FeatImages: {
+    preload: ({ preload: data }) => ({ width: data.width, height: data.height, url: data.source_url }),
     thumbnail: ({ thumbnail: data }) => ({ width: data.width, height: data.height, url: data.source_url }),
     medium: ({ medium: data }) => ({ width: data.width, height: data.height, url: data.source_url }),
     large: ({ large: data }) => ({ width: data.width, height: data.height, url: data.source_url }),
@@ -197,12 +244,12 @@ const resolvers = {
     propertyData: (data) => fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties/${data.property.ID}`).then(data => data.json())
   },
   Home: {
-    bannerImage: (homeData, ) => homeData.acf.home_banner_image.sizes,
+    bannerImage: (homeData, { size }) => ({ width: homeData.acf.home_banner_image.sizes[`${convertImageName(size)}-width`], height: homeData.acf.home_banner_image.sizes[`${convertImageName(size)}-height`], url: homeData.acf.home_banner_image.sizes[`${convertImageName(size)}`] }),
     bannerHeadline: (homeData) => homeData.acf.home_banner_headline,
     bannerVideo: (homeData) => homeData.acf.home_banner_video,
-    sliderProperties: (homeData) => homeData.acf.home_properties,
+    sliderProperties: (homeData) => homeData.acf.home_properties.map(({ property }) => fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties/${property.ID}`).then(data => data.json())),
     topContent: (homeData) => homeData.acf.home_top_content,
-    contentImage: (homeData) => homeData.acf.home_content_image,
+    contentImage: (homeData, { size }) => ({ width: homeData.acf.home_content_image.sizes[`${convertImageName(size)}-width`], height: homeData.acf.home_content_image.sizes[`${convertImageName(size)}-height`], url: homeData.acf.home_content_image.sizes[convertImageName(size)] }),
     bottomContentHeadline: (homeData) => homeData.acf.home_bottom_content_headline,
     bottomContentSubheadline: (homeData) => homeData.acf.home_bottom_content_subheadline,
     testimonialsHeadline: (homeData) => homeData.acf.home_testimonials_headline,
@@ -223,26 +270,26 @@ const resolvers = {
     mainImage: (data) => data.acf.contact_main_image
   },
   Options: {
-    contactnumber: ({global_contact_number}) => global_contact_number,
-    contactEmail: ({global_contact_email}) => global_contact_email,
-    contactAddress: ({global_contact_address}) => global_contact_address
+    contactnumber: ({ global_contact_number }) => global_contact_number,
+    contactEmail: ({ global_contact_email }) => global_contact_email,
+    contactAddress: ({ global_contact_address }) => global_contact_address
   },
   Gallery: {
     images: (data) => data.sizes
   },
   Property: {
-    title: ({title}) => title.rendered,
+    title: ({ title }) => title.rendered,
     featuredImage: (propData) => propData.better_featured_image.media_details.sizes,
-    status: ({acf:{property_status}}) => property_status,
+    status: ({ acf: { property_status } }) => property_status,
     address: (propData) => propData.acf.property_address,
     description: (propData) => propData.acf.property_description,
-    gallery: (propData) => (propData.acf.gallery) ? propData.acf.gallery.map(image =>  image.sizes ) : null,
-    brochure: (propData) => (propData.acf.brochure) ? propData.acf.brochure.map(image =>  image.sizes ) : null,
+    gallery: (propData, { size }) => (propData.acf.gallery) ? propData.acf.gallery.map(image => ({ width: image.sizes[`${convertImageName(size)}-width`], height: image.sizes[`${convertImageName(size)}-height`], url: image.sizes[`${convertImageName(size)}`] })) : null,
+    brochure: (propData, { size }) => (propData.acf.brochure) ? propData.acf.brochure.map(image => ({ width: image.sizes[`${convertImageName(size)}-width`], height: image.sizes[`${convertImageName(size)}-height`], url: image.sizes[`${convertImageName(size)}`] })) : null,
     brochureDownload: (propData) => propData.acf.brochure_download,
     specs: (propData) => propData.acf.property_specs,
     price: (propData) => propData.acf.property_price,
     latlng: (propData) => propData.acf.latlng,
-    mainPhoto: (propData) => propData.acf.main_photo.sizes,
+    mainPhoto: (homeData, { size }) => ({ width: homeData.acf.main_photo.sizes[`${convertImageName(size)}-width`], height: homeData.acf.main_photo.sizes[`${convertImageName(size)}-height`], url: homeData.acf.main_photo.sizes[`${convertImageName(size)}`] }),
     completionDate: (propData) => propData.acf.completion_date
   }
 };
