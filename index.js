@@ -73,6 +73,13 @@ const typeDefs = gql`
     portfolioRetina
     bgLg
   }
+
+  enum PageName {
+    home
+    about-us
+    contact-us
+    portfolio
+  }
   type Gallery {
     images: Images
   }
@@ -140,7 +147,7 @@ const typeDefs = gql`
   type Query {
     properties(results: Int!): [Property!]!
     property(id: Int!): Property!
-    pages(page: String!): Page
+    pages(page: String): Page
     options: Options
   }
   interface Page {
