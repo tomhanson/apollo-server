@@ -74,17 +74,25 @@ const typeDefs = gql`
     bgLg
   }
 
+  enum NavLocation {
+    PRIMARY_NAVIGATION
+    FOOTER_NAV_ONE
+    FOOTER_NAV_TWO
+  }
+
   enum PageName {
-    home
-    about-us
-    contact-us
-    portfolio
+    HOME
+    ABOUT_US
+    CONTACT_US
+    PORTFOLIO
+    PROPERTIES
   }
   type Gallery {
     images: Images
   }
   
   type Property {
+    id: ID!
     title: String
     slug: String
     featuredImage: FeatImages
@@ -145,11 +153,24 @@ const typeDefs = gql`
 
   # The "Query" type is the root of all GraphQL queries.
   type Query {
-    properties(results: Int!): [Property!]!
+    properties(results: Int!, offset: Int, exclude: Int, filter: FilterOptions): [Property]!
     property(id: Int!): Property!
     pages(page: String): Page
     options: Options
+    navigation(navLocation: NavLocation!): [Navigation!] 
   }
+
+  enum FilterOptions {
+    SOLD,
+    DEVELOPMENT
+  }
+
+  type Navigation {
+    id: ID!
+    title: String!
+    url: String!
+  }
+
   interface Page {
     slug: String
   }
@@ -173,6 +194,13 @@ const typeDefs = gql`
     testimonialsHeadline: String
     testimonialsSubheadline: String
   }
+
+  type Properties implements Page {
+    slug: String
+    title: String
+    content: String
+  }
+  
   type Contact implements Page {
     slug: String
     mainImage: String
@@ -184,8 +212,12 @@ const typeDefs = gql`
 // schema.  
 const resolvers = {
   Query: {
-    properties(_, { results }) {
-      return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties?per_page=${results}`).then(data => data.json());
+    properties(_, { results, offset, exclude, filter }) {
+      const offsetString = offset ? `&offset=${offset}` : ''
+      const excludedCategories = exclude ? `&categories_exclude=${exclude}` : '';
+      const filtered = filter ? `&filter[meta_key]=property_status&filter[meta_compare]=IN&filter[meta_value]=${filter}` : '';
+      // &categories_exclude=3&filter[meta_key]=property_status&filter[meta_compare]=IN&filter[meta_value]=Sold
+      return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties?per_page=${results}${offsetString}${excludedCategories}${filtered}`).then(data => data.json());
     },
     property(_, { id }) {
       return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties/${id}`).then(data => data.json());
@@ -195,6 +227,9 @@ const resolvers = {
     },
     options(_, { page }) {
       return fetch(`https://abbeymillhomes.co.uk/wp-json/acf/v2/options`).then(data => data.json()).then(data => data.acf);
+    },
+    navigation(_, { navLocation }) {
+      return fetch(`https://abbeymillhomes.co.uk/wp-json/wp-api-menus/v2/menu-locations/${navLocation}`).then(data => data.json()).then(data => data);
     }
   },
   Page: {
@@ -207,11 +242,27 @@ const resolvers = {
           return 'About';
         case 'contact-us':
           return 'Contact';
+        case 'our-properties':
+          return 'Properties';
         default:
           return null
       }
       return null;
     },
+  },
+
+  FilterOptions: {
+    'SOLD': 'Sold',
+    'DEVELOPMENT': 'Development'
+  },
+
+  NavLocation: {
+    'PRIMARY_NAVIGATION': 'primary_navigation',
+    'FOOTER_NAV_ONE': 'footer_nav_1',
+    'FOOTER_NAV_TWO': 'footer_nav_2'
+  },
+  Navigation: {
+    id: ({ ID }) => ID
   },
   Images: {
     preload: (data, args) => ({ width: data['preload-width'], height: data['preload-height'], url: data.preload }),
@@ -283,6 +334,10 @@ const resolvers = {
   },
   Gallery: {
     images: (data) => data.sizes
+  },
+  Properties: {
+    title: ({ title }) => title.rendered,
+    content: ({ content }) => content.rendered,
   },
   Property: {
     title: ({ title }) => title.rendered,
