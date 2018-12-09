@@ -2,6 +2,7 @@ const { ApolloServer, gql } = require('apollo-server');
 const fetch = require('node-fetch');
 // const home = require('./mocks/properties');
 // const data = require('./mocks/data')
+const memoize = require('memoizee');
 
 function convertImageName(param) {
   switch (param) {
@@ -172,9 +173,11 @@ const typeDefs = gql`
   }
 
   interface Page {
+    id: ID!
     slug: String
   }
   type About implements Page {
+    id: ID!
     slug: String
     leftContent: String
     image: String
@@ -182,6 +185,7 @@ const typeDefs = gql`
     charityInformation: [CharityData]
   }
   type Home implements Page {
+    id: ID!
     slug: String
     bannerImage(size: ImageSizes): ImageInfo
     bannerHeadline: String
@@ -196,40 +200,57 @@ const typeDefs = gql`
   }
 
   type Properties implements Page {
+    id: ID!
     slug: String
     title: String
     content: String
   }
   
   type Contact implements Page {
+    id: ID!
     slug: String
     mainImage: String
   }
 `;
+const getNav = (navLocation) => {
+  return fetch(`https://abbeymillhomes.co.uk/wp-json/wp-api-menus/v2/menu-locations/${navLocation}`).then(data => data.json()).then(data => data);
+}
+const memoizeGetNav = memoize(getNav, { maxAge: 1000 * 60 * 60, promise: true })
 
+const getProps = (results, offset, exclude, filter) => {
+  const offsetString = offset ? `&offset=${offset}` : ''
+  const excludedCategories = exclude ? `&categories_exclude=${exclude}` : '';
+  const filtered = filter ? `&filter[meta_key]=property_status&filter[meta_compare]=IN&filter[meta_value]=${filter}` : '';
+  // &categories_exclude=3&filter[meta_key]=property_status&filter[meta_compare]=IN&filter[meta_value]=Sold
+  return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties?per_page=${results}${offsetString}${excludedCategories}${filtered}`).then(data => data.json());
+}
+
+const memoizeGetProps = memoize(getProps, { maxAge: 1000 * 60 * 60, promise: true })
+
+const getPages = (page) => {
+  return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/pages?slug=${page}`).then(data => data.json()).then(data => data[0]);
+}
+
+const memoizeGetPages = memoize(getPages, { maxAge: 1000 * 60 * 60, promise: true })
 
 // Resolvers define the technique for fetching the types in the
 // schema.  
 const resolvers = {
   Query: {
     properties(_, { results, offset, exclude, filter }) {
-      const offsetString = offset ? `&offset=${offset}` : ''
-      const excludedCategories = exclude ? `&categories_exclude=${exclude}` : '';
-      const filtered = filter ? `&filter[meta_key]=property_status&filter[meta_compare]=IN&filter[meta_value]=${filter}` : '';
-      // &categories_exclude=3&filter[meta_key]=property_status&filter[meta_compare]=IN&filter[meta_value]=Sold
-      return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties?per_page=${results}${offsetString}${excludedCategories}${filtered}`).then(data => data.json());
+      return memoizeGetProps(results, offset, exclude, filter);
     },
     property(_, { id }) {
       return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/properties/${id}`).then(data => data.json());
     },
     pages(_, { page }) {
-      return fetch(`https://abbeymillhomes.co.uk/wp-json/wp/v2/pages?slug=${page}`).then(data => data.json()).then(data => data[0]);
+      return memoizeGetPages(page)
     },
     options(_, { page }) {
       return fetch(`https://abbeymillhomes.co.uk/wp-json/acf/v2/options`).then(data => data.json()).then(data => data.acf);
     },
     navigation(_, { navLocation }) {
-      return fetch(`https://abbeymillhomes.co.uk/wp-json/wp-api-menus/v2/menu-locations/${navLocation}`).then(data => data.json()).then(data => data);
+      return memoizeGetNav(navLocation);
     }
   },
   Page: {
